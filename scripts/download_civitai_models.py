@@ -19,12 +19,7 @@ from urllib.parse import urlparse
 
 import requests
 
-try:
-    from tqdm import tqdm  # progress bar
-except ImportError:
-    # Fallback if tqdm isn't installed
-    def tqdm(iterable, **kwargs):
-        return iterable
+from tqdm import tqdm
 
 
 API_KEY = os.getenv("CIVITAI_API_KEY")
@@ -153,7 +148,12 @@ def get_model_dest_path(
 
 
 def download_model(models_dir: pathlib.Path, model_spec: str) -> bool:
-    """Download a single model specified by URN or direct URL."""
+    """Download a single model specified by URN or direct URL.
+    
+    NOTE: This function is deprecated and only kept for testing.
+    The main implementation now uses process_model_entry() which has
+    better support for version specifiers in URNs.
+    """
     if is_direct_url(model_spec):
         filename = get_filename_from_url(model_spec)
         dest_path = get_model_dest_path(models_dir, model_spec, filename)
@@ -186,12 +186,21 @@ def download_model(models_dir: pathlib.Path, model_spec: str) -> bool:
 def main():
     """Main download function."""
     # Exit early if nothing to do
-    if not API_KEY or not entries:
+    if not entries:
+        print("[*] No models specified for download")
+        return
+    
+    if not API_KEY:
+        print("[!] CIVITAI_API_KEY not set, skipping Civitai downloads")
         return
 
-    # Use the new download_model function for each entry
+    print(f"[*] Starting download of {len(entries)} model(s)...")
+    
+    # Use the robust process_model_entry function for each entry
     for entry, dest_dir in entries:
-        download_model(dest_dir.parent, entry)
+        process_model_entry(entry, dest_dir)
+    
+    print("[✔] Model download process completed.")
     return
 
 
@@ -235,10 +244,7 @@ def download_file(url: str, dest: pathlib.Path):
     with requests.get(url, headers=headers, stream=True) as resp:
         resp.raise_for_status()
         total_size = int(resp.headers.get("content-length", 0))
-        with (
-            open(dest, "wb") as f,
-            tqdm(total=total_size, unit="B", unit_scale=True, desc=dest.name) as bar,
-        ):
+        with open(dest, "wb") as f, tqdm(total=total_size, unit="B", unit_scale=True, desc=dest.name) as bar:
             for chunk in resp.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)

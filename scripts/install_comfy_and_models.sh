@@ -374,7 +374,9 @@ download_models() {
     echo "[*] Running model download helper..."
     export CIVITAI_MODEL_DIR="$MODEL_DEST_DIR"
     # CIVITAI_API_KEY / CIVITAI_* variables are passed through env
-    python "$HELPER_PY" || true
+    if ! python "$HELPER_PY"; then
+      echo "[!] Warning: Model download script encountered errors, but continuing..."
+    fi
   else
     echo "[!] Helper script $HELPER_PY not found. Skipping Civitai downloads."
   fi
