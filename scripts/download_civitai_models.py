@@ -2,10 +2,10 @@
 """Download specified Civitai models into the ComfyUI models directory.
 
 Environment variables expected:
-• CIVITAI_API_KEY   –  your Civitai API key
-• CIVITAI_CHECKPOINTS – comma-separated list of checkpoint IDs/URNs
-• CIVITAI_LORAS       – comma-separated list of lora IDs/URNs
-• CIVITAI_MODEL_DIR –  (optional) destination directory, default
+• CIVITAI_API_KEY   -  your Civitai API key
+• CIVITAI_CHECKPOINTS - comma-separated list of checkpoint IDs/URNs
+• CIVITAI_LORAS       - comma-separated list of lora IDs/URNs
+• CIVITAI_MODEL_DIR -  (optional) destination directory, default
                         /home/comfyuser/ComfyUI/models
 
 The script is idempotent: it skips files that already exist locally.

@@ -70,6 +70,9 @@ fi
 # CIVITAI_API_KEY and AUTO_START are expected via env.
 # -------------------------------------------------------------
 
+# Determine the directory this script resides in (so we can find helper scripts)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Path to YAML config file; can be overridden via CONFIG_FILE env
 CONFIG_FILE="${CONFIG_FILE:-config.yml}"
 
@@ -85,7 +88,7 @@ load_yaml_config() {
 
   # Use Python + PyYAML to emit shell-compatible exports
   eval "$(python - <<'PY' "$cfg"
-import sys, yaml, shlex, pathlib
+import sys, yaml, shlex, pathlib, os
 cfg_file = pathlib.Path(sys.argv[1])
 data = yaml.safe_load(cfg_file.read_text()) or {}
 
@@ -135,7 +138,7 @@ if selected_workflow:
     workflows = data.get('workflows', [])
     for wf in workflows:
         if isinstance(wf, dict) and wf.get('name') == selected_workflow:
-            print(f"[*] Selected workflow: {selected_workflow}")
+            print(f"[*] Selected workflow: {selected_workflow}", file=sys.stderr)
             wf_models = wf.get('models', {})
             for cat, lst in wf_models.items():
                 workflow_models[cat] = lst
@@ -145,7 +148,7 @@ if selected_workflow:
                     workflow_nodes.append(node.get('url'))
             break
     else:
-        print(f"[!] Workflow '{selected_workflow}' not found")
+        print(f"[!] Workflow '{selected_workflow}' not found", file=sys.stderr)
 
 # Merge global + workflow-specific models
 all_models = {}
@@ -182,7 +185,7 @@ def resolve_refs(category, items, global_models):
                         found = True
                         break
             if not found:
-                print(f"[!] Warning: ref '{ref_id}' not found in models.{category}")
+                print(f"[!] Warning: ref '{ref_id}' not found in models.{category}", file=sys.stderr)
         else:
             resolved.append(item_str)
     return ','.join(resolved) if resolved else None
@@ -229,13 +232,12 @@ CPU_ONLY="${CPU_ONLY:-1}"
 MODEL_DEST_DIR="${MODEL_DEST_DIR:-${COMFY_DIR}/models}"
 MODELS_SOURCE_DIR="${MODELS_SOURCE_DIR:-}"  # optional
 
-# Determine the directory this script resides in (so we can find the Python helper)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Path to Python helper script
 HELPER_PY="${SCRIPT_DIR}/download_civitai_models.py"
 
 pkg_install() {
   if command -v apt-get >/dev/null 2>&1; then
-    echo "[*] Installing system packages via apt-get…"
+    echo "[*] Installing system packages via apt-get..."
     apt-get update -y
     # shellcheck disable=SC2016
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -247,21 +249,21 @@ pkg_install() {
 
 clone_comfy() {
   if [[ -d "$COMFY_DIR/.git" ]]; then
-    echo "[✓] ComfyUI already cloned at $COMFY_DIR – skipping clone"
+    echo "[✓] ComfyUI already cloned at $COMFY_DIR - skipping clone"
   else
-    echo "[*] Cloning ComfyUI into $COMFY_DIR…"
+    echo "[*] Cloning ComfyUI into $COMFY_DIR..."
     git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git "$COMFY_DIR"
   fi
 }
 
 build_venv() {
   if [[ ! -d "$COMFY_DIR/venv" ]]; then
-    echo "[*] Creating Python venv…"
+    echo "[*] Creating Python venv..."
     python3 -m venv "$COMFY_DIR/venv"
   fi
   # shellcheck source=/dev/null
   source "$COMFY_DIR/venv/bin/activate"
-  echo "[*] Upgrading pip & wheel…"
+  echo "[*] Upgrading pip & wheel..."
   pip install --upgrade pip wheel setuptools
 }
 
@@ -272,18 +274,18 @@ install_torch() {
     exit 1
   fi
   if [[ "$CPU_ONLY" == "1" ]]; then
-    echo "[*] Installing CPU-only PyTorch…"
+    echo "[*] Installing CPU-only PyTorch..."
     pip install --index-url https://download.pytorch.org/whl/cpu \
       'torch>=2.1,<3' 'torchvision>=0.16,<1'
   else
-    echo "[*] Installing CUDA-enabled PyTorch (cu121)…"
+    echo "[*] Installing CUDA-enabled PyTorch (cu121)..."
     pip install --extra-index-url https://download.pytorch.org/whl/cu121 \
       'torch>=2.1,<3' 'torchvision>=0.16,<1'
   fi
 }
 
 install_requirements() {
-  echo "[*] Installing ComfyUI requirements…"
+  echo "[*] Installing ComfyUI requirements..."
   pip install -r "$COMFY_DIR/requirements.txt" requests tqdm pyyaml
 }
 
@@ -300,7 +302,7 @@ install_custom_nodes() {
   local urls="${YAML_CUSTOM_NODE_URLS:-}"  # Provided by load_yaml_config
   [[ -z "$urls" ]] && return 0
 
-  echo "[*] Installing custom nodes from YAML config…"
+  echo "[*] Installing custom nodes from YAML config..."
 
   # Activate venv if not already active
   # shellcheck disable=SC1090
@@ -314,7 +316,7 @@ install_custom_nodes() {
 
 download_models() {
   if [[ -f "$HELPER_PY" ]]; then
-    echo "[*] Running model download helper…"
+    echo "[*] Running model download helper..."
     export CIVITAI_MODEL_DIR="$MODEL_DEST_DIR"
     # CIVITAI_API_KEY / CIVITAI_* variables are passed through env
     python "$HELPER_PY" || true
@@ -325,7 +327,7 @@ download_models() {
 
 copy_local_models() {
   if [[ -n "$MODELS_SOURCE_DIR" ]]; then
-    echo "[*] Copying local models from $MODELS_SOURCE_DIR → $MODEL_DEST_DIR…"
+    echo "[*] Copying local models from $MODELS_SOURCE_DIR -> $MODEL_DEST_DIR..."
     mkdir -p "$MODEL_DEST_DIR"
     rsync -av --progress "$MODELS_SOURCE_DIR"/ "$MODEL_DEST_DIR"/
   fi
@@ -336,7 +338,7 @@ main() {
   # Detect an existing installation and short-circuit if found
   # ---------------------------------------------------------
   if [[ -d "$COMFY_DIR/.git" && -f "$COMFY_DIR/venv/bin/python" ]]; then
-    echo "[✓] ComfyUI already installed at $COMFY_DIR – nothing to do."
+    echo "[✓] ComfyUI already installed at $COMFY_DIR - nothing to do."
     echo "    $COMFY_DIR/venv/bin/python $COMFY_DIR/main.py --listen --port 8188"
 
     # We still allow installing/updating models or custom nodes even if ComfyUI exists.
@@ -345,7 +347,7 @@ main() {
     copy_local_models
 
     if [[ "${AUTO_START:-0}" == "1" ]]; then
-      echo "[*] AUTO_START=1 detected – launching ComfyUI…"
+      echo "[*] AUTO_START=1 detected - launching ComfyUI..."
       exec "$COMFY_DIR/venv/bin/python" "$COMFY_DIR/main.py" --listen --port 8188
     fi
     return 0
@@ -364,7 +366,7 @@ main() {
 
   # Optionally start ComfyUI immediately if AUTO_START=1
   if [[ "${AUTO_START:-0}" == "1" ]]; then
-    echo "[*] AUTO_START=1 detected – launching ComfyUI…"
+    echo "[*] AUTO_START=1 detected - launching ComfyUI..."
     exec "$COMFY_DIR/venv/bin/python" "$COMFY_DIR/main.py" --listen --port 8188
   fi
 }

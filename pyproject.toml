@@ -56,6 +56,10 @@ select = [
     "C4",     # flake8-comprehensions
     "SIM",    # flake8-simplify
     "TCH",    # flake8-type-checking
+    "RUF001", # ambiguous-unicode-character-string
+    "RUF002", # ambiguous-unicode-character-docstring
+    "RUF003", # ambiguous-unicode-character-comment
+    "PLC2401", # non-ascii-name
 ]
 
 # Allow unused variables when underscore-prefixed
