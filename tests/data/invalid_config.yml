@@ -1,0 +1,17 @@
+# Invalid configuration for testing error handling
+install:
+  cpu_only: "not_a_boolean"  # Should be boolean
+  unknown_field: "error"     # Unknown field
+
+models:
+  checkpoints:
+    - name: "missing required field"  # Missing urn/url/id/ref
+
+custom_nodes:
+  - name: "Missing URL"  # Missing required url field
+
+workflows:
+  - description: "Missing name field"  # Missing required name field
+    models:
+      checkpoints:
+        - ref: "non-existent-model"  # References non-existent model 

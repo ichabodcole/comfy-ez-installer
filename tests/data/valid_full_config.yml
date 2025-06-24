@@ -1,0 +1,47 @@
+# Comprehensive valid configuration for testing
+install:
+  comfy_dir: /workspace/ComfyUI
+  cpu_only: true
+
+models:
+  dest_dir: /workspace/models
+  source_dir: /host/models
+  checkpoints:
+    - id: sdxl-base
+      urn: urn:air:sdxl:checkpoint:civitai:12345
+      name: SDXL Base Model
+      description: Base SDXL checkpoint
+    - id: realistic-vision
+      urn: urn:air:sd1:checkpoint:civitai:67890
+      name: Realistic Vision
+  loras:
+    - urn: urn:air:sd1:lora:civitai:98765
+      name: Style LoRA
+  vae:
+    - urn: urn:air:sdxl:vae:civitai:11111
+      name: SDXL VAE
+
+custom_nodes:
+  - name: ControlNet
+    url: git+https://github.com/example/controlnet.git
+    description: ControlNet support
+  - name: ComfyUI-Manager
+    url: git+https://github.com/ltdrdata/ComfyUI-Manager.git
+
+workflows:
+  - name: Test Workflow
+    description: A test workflow for development
+    models:
+      checkpoints:
+        - ref: sdxl-base
+        - ref: realistic-vision
+      loras:
+        - urn:air:sd1:lora:civitai:22222
+    custom_nodes:
+      - name: WorkflowNode
+        url: git+https://github.com/example/workflow-node.git
+  - name: Simple Workflow
+    description: Minimal workflow
+    models:
+      checkpoints:
+        - ref: sdxl-base 

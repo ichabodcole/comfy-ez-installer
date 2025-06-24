@@ -1,0 +1,26 @@
+# Configuration for testing workflow functionality
+models:
+  checkpoints:
+    - id: global-model
+      urn: urn:air:sdxl:checkpoint:civitai:11111
+      name: Global Model
+    - id: another-model
+      urn: urn:air:sd1:checkpoint:civitai:22222
+      name: Another Model
+
+custom_nodes:
+  - name: GlobalNode
+    url: git+https://github.com/global/node.git
+
+workflows:
+  - name: Test Workflow
+    description: Test workflow with references
+    models:
+      checkpoints:
+        - ref: global-model
+      loras:
+        - urn: urn:air:sd1:lora:civitai:33333
+          name: Workflow-specific LoRA
+    custom_nodes:
+      - name: WorkflowNode
+        url: git+https://github.com/workflow/node.git 

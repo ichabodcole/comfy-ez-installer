@@ -1,0 +1,94 @@
+# -------------------------------------------------------------
+# Example configuration for install_comfy_and_models.sh
+# Rename to config.yml or set CONFIG_FILE=/path/to/your.yml
+# -------------------------------------------------------------
+
+# Top-level sections supported: install, models, custom_nodes, workflows
+
+install:
+  # Location to clone / run ComfyUI (absolute or relative)
+  # Default: /workspace/ComfyUI
+  # comfy_dir: /workspace/ComfyUI
+
+  # false → install CUDA build (container/host must have matching CUDA runtime)
+  # Default: true (CPU-only build)
+  # cpu_only: true
+
+models:
+  # Destination directory where models will live.
+  # Default: <comfy_dir>/models  (i.e. /workspace/ComfyUI/models)
+  # dest_dir: /workspace/ComfyUI/models
+
+  # Local folder to copy into dest_dir each run.
+  # Omit or leave empty to skip the copy step (default behaviour).
+  # source_dir: /host/models  # uncomment to enable
+
+  # Checkpoints to download from Civitai.
+  # Each can have an 'id' for referencing in workflows.
+  checkpoints:
+    - id: sdxl-base
+      urn: urn:air:sdxl:checkpoint:civitai:101055
+      name: "SDXL Base"
+      description: "Primary SDXL checkpoint"
+    - id: realistic-vision
+      urn: urn:air:sd1:checkpoint:civitai:4201
+      name: "Realistic Vision"
+
+  # LoRAs to download. Remove/leave empty list to skip (default behaviour).
+  loras:
+    - id: style-lora
+      urn: urn:air:sd1:lora:civitai:16576
+      name: "Style LoRA"
+      description: "Artistic style enhancement"
+
+  # Other model categories are supported automatically. The installer will
+  # create a subfolder matching the key name (e.g., "vae" → vae/, "embeddings" → embeddings/)
+  # and download each URN listed.
+  # Examples:
+  # vae:
+  #   - urn: urn:air:sd1:vae:civitai:22222
+  # embeddings:
+  #   - urn: urn:air:sd1:embedding:civitai:33333
+  # upscale_models:
+  #   - urn: urn:air:sd1:upscale:civitai:44444
+
+workflows:
+  # Define workflows and their specific dependencies.
+  # This allows you to install only what's needed for particular use cases.
+  - name: "Basic SDXL Generation"
+    description: "Simple text-to-image with SDXL"
+    file: "./workflows/basic_sdxl.json"  # optional: path to workflow JSON
+    models:
+      checkpoints:
+        - ref: sdxl-base
+      vae:
+        - urn: urn:air:sdxl:vae:civitai:123456
+    custom_nodes:
+      - name: "SDXL Nodes"
+        url: git+https://github.com/example/sdxl-nodes.git
+
+  - name: "ControlNet Workflow" 
+    description: "Advanced generation with ControlNet"
+    models:
+      checkpoints:
+        - ref: realistic-vision
+      controlnet:
+        - urn: urn:air:sd1:controlnet:civitai:54321
+      loras:
+        - ref: style-lora
+    custom_nodes:
+      - name: "ControlNet"
+        url: git+https://github.com/lllyasviel/ComfyUI_ControlNet.git
+
+# Global custom nodes (installed regardless of workflow selection)
+custom_nodes:
+  - name: ControlNet
+    description: Adds ControlNet nodes
+    url: git+https://github.com/lllyasviel/ComfyUI_ControlNet.git
+
+  - name: Comfy-Manager
+    description: GUI package manager for nodes
+    url: git+https://github.com/ltdrdata/ComfyUI-Manager.git
+
+  - name: ExtraParticles
+    url: comfyui-extra-particles        # Example PyPI package 

@@ -1,0 +1,83 @@
+# syntax=docker/dockerfile:1
+
+# -------------------------------------------------------------
+# ComfyUI Dockerfile for Apple Silicon (CPU-only)
+# -------------------------------------------------------------
+# Build for arm64 (Apple Silicon):
+#   docker build --platform linux/arm64 -t comfyui-mac:latest -f Dockerfile.mac .
+# Run:
+#   docker run -p 8188:8188 --name comfyui comfyui-mac:latest
+# -------------------------------------------------------------
+# Notes:
+# • Linux containers on macOS cannot access the host's Metal GPU directly, so this
+#   image installs the CPU-only PyTorch build. Performance is acceptable for small
+#   or remote inference; for heavy GPU workflows use the RunPod image instead.
+# -------------------------------------------------------------
+
+FROM python:3.10-slim
+
+LABEL description="CPU-only ComfyUI image for Apple Silicon hosts"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTORCH_ENABLE_MPS_FALLBACK=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TZ=UTC
+
+# -------------------------------------------------------------
+# System dependencies
+# -------------------------------------------------------------
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        git \
+        ffmpeg \
+        libgl1 \
+        ca-certificates \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# -------------------------------------------------------------
+# Create non-root user
+# -------------------------------------------------------------
+RUN useradd -ms /bin/bash comfyuser
+USER comfyuser
+WORKDIR /home/comfyuser
+
+# -------------------------------------------------------------
+# Python virtual environment (optional but keeps global env clean)
+# -------------------------------------------------------------
+RUN python -m venv /home/comfyuser/venv
+ENV PATH="/home/comfyuser/venv/bin:$PATH"
+
+# Upgrade pip + wheel
+RUN pip install --upgrade pip wheel setuptools
+
+# -------------------------------------------------------------
+# Clone ComfyUI source
+# -------------------------------------------------------------
+RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git ./ComfyUI
+
+WORKDIR /home/comfyuser/ComfyUI
+
+# -------------------------------------------------------------
+# Install Python dependencies (CPU-only PyTorch)
+# -------------------------------------------------------------
+RUN pip install --index-url https://download.pytorch.org/whl/cpu \
+    'torch>=2.1,<3' 'torchvision>=0.16,<1'
+
+# Install remaining requirements
+RUN pip install -r requirements.txt
+# Install additional tooling for model download
+RUN pip install requests tqdm
+
+# -------------------------------------------------------------
+# Copy helper scripts and set entrypoint
+# -------------------------------------------------------------
+COPY --chown=comfyuser --chmod=755 ../scripts /home/comfyuser/scripts
+
+# -------------------------------------------------------------
+# Expose UI port & set default command
+# -------------------------------------------------------------
+EXPOSE 8188
+
+ENTRYPOINT ["/home/comfyuser/scripts/entrypoint.sh"] 

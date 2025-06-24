@@ -1,0 +1,38 @@
+# -------------------------------------------------------------
+# ComfyUI stack with optional GPU or CPU (Mac) service.
+# Choose a profile when starting:
+#   GPU  → docker compose --profile gpu up --build
+#   Mac  → docker compose --profile mac up --build
+# If no profile is specified, both are ignored (safety).
+# -------------------------------------------------------------
+services:
+  comfyui-gpu:
+    profiles: ["gpu"]
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.runpod
+    image: comfyui-runpod:compose
+    ports:
+      - "8188:8188"
+    env_file:
+      - .env
+    volumes:
+      - ./models:/home/comfyuser/ComfyUI/models
+    runtime: nvidia
+
+  comfyui-mac:
+    profiles: ["mac"]
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.mac
+      # Optionally force arm64 build when building on Intel hosts for Apple Silicon
+      # platform: linux/arm64
+    image: comfyui-mac:compose
+    ports:
+      - "8188:8188"
+    env_file:
+      - .env
+    volumes:
+      - ./models:/home/comfyuser/ComfyUI/models
+
+volumes: {} 

@@ -1,0 +1,3 @@
+# Minimal valid configuration for testing
+install:
+  cpu_only: true 

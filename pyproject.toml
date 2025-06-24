@@ -1,0 +1,97 @@
+[project]
+name = "comfy-docker-project"
+version = "0.1.0"
+description = "ComfyUI Docker deployment with YAML-driven configuration"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "PyYAML>=6.0",
+    "requests>=2.28.0",
+]
+
+[project.scripts]
+comfyctl = "comfyctl:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.ruff]
+# Same as Black's default line length
+line-length = 88
+target-version = "py312"
+
+# Exclude common directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default
+# Plus some additional useful rules
+select = [
+    "E",      # pycodestyle errors
+    "F",      # Pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+]
+
+# Allow unused variables when underscore-prefixed
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "B008",   # Do not perform function calls in argument defaults
+    "C901",   # Too complex (we'll handle case by case)
+    "SIM117", # Nested with statements (can be overly strict)
+    "F401",   # Unused imports in try/except dependency checks
+]
+
+[tool.ruff.format]
+# Use single quotes for strings
+quote-style = "double"
+# Indent with spaces
+indent-style = "space"
+# Respect existing line endings
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+# Group imports by type
+known-first-party = ["scripts", "tests"]
+force-sort-within-sections = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["scripts"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
+    "ruff>=0.12.0",
+]
