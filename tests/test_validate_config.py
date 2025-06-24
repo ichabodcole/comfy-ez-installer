@@ -202,7 +202,7 @@ class TestConfigValidation(unittest.TestCase):
         exit_code, stdout, stderr = self.run_validator(config_path)
 
         self.assertEqual(exit_code, 1)
-        self.assertIn("missing 'url' field", stdout)
+        self.assertIn("missing 'url' or 'id' field", stdout)
 
     def test_nonexistent_file(self):
         """Test handling of non-existent config file."""

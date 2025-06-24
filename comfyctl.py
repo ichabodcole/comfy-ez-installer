@@ -25,6 +25,7 @@ DEFAULT_CONFIG = ROOT / "config.yml"
 
 
 def run_install(args: argparse.Namespace):
+    import sys
     cmd = ["bash", str(INSTALL_SH)]
     env = os.environ.copy()
     if args.config:
@@ -33,7 +34,11 @@ def run_install(args: argparse.Namespace):
         env["ENV_FILE"] = str(pathlib.Path(args.env_file).resolve())
     if args.workflow:
         env["WORKFLOW"] = args.workflow
-    subprocess.run(cmd, env=env, check=True)
+    try:
+        subprocess.run(cmd, env=env, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Installation failed with exit code {e.returncode}", file=sys.stderr)
+        sys.exit(e.returncode)
 
 
 def run_validate(args: argparse.Namespace):
@@ -60,6 +65,7 @@ def run_validate(args: argparse.Namespace):
 
 
 def run_start(args: argparse.Namespace):
+    import sys
     cfg_path = pathlib.Path(args.config or DEFAULT_CONFIG).resolve()
     comfy_dir = "/workspace/ComfyUI"  # default
     # Read config to override comfy_dir if set
@@ -74,7 +80,11 @@ def run_start(args: argparse.Namespace):
     python_bin = pathlib.Path(comfy_dir) / "venv" / "bin" / "python"
     main_py = pathlib.Path(comfy_dir) / "main.py"
     cmd = [str(python_bin), str(main_py), "--listen", "--port", "8188"]
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ ComfyUI failed to start with exit code {e.returncode}", file=sys.stderr)
+        sys.exit(e.returncode)
 
 
 def main():

@@ -158,7 +158,29 @@ class TestConfigValidationPytest:
         exit_code, stdout, stderr = self.run_validator(validator_script, config_path)
 
         assert exit_code == 1
-        assert "missing 'url' field" in stdout
+        assert "missing 'url' or 'id' field" in stdout
+
+    def test_custom_node_references(self, validator_script, write_config_file):
+        """Test validation of custom node references in workflows."""
+        config = {
+            "custom_nodes": [
+                {"id": "valid-node", "url": "https://github.com/valid/node"}
+            ],
+            "workflows": [
+                {
+                    "name": "Test Workflow",
+                    "custom_nodes": [
+                        {"ref": "valid-node"},  # Valid reference
+                        {"ref": "invalid-node"}  # Invalid reference
+                    ]
+                }
+            ]
+        }
+        config_path = write_config_file(config)
+        exit_code, stdout, stderr = self.run_validator(validator_script, config_path)
+
+        assert exit_code == 1
+        assert "ref 'invalid-node' not found in global custom_nodes" in stdout
 
     def test_nonexistent_file(self, validator_script, temp_dir):
         """Test handling of non-existent config file."""

@@ -1,26 +1,30 @@
 # Configuration for testing workflow functionality
 models:
   checkpoints:
-    - id: global-model
-      urn: urn:air:sdxl:checkpoint:civitai:11111
-      name: Global Model
-    - id: another-model
-      urn: urn:air:sd1:checkpoint:civitai:22222
-      name: Another Model
+    - id: pny-cyberrealistic-v12
+      urn: "urn:air:sd1:checkpoint:civitai:138176@1029688"
+      desc: "CyberRealistic v1.2"
+    - id: sd15-base
+      urn: "urn:air:sd1:checkpoint:civitai:6424@501240"
+      
+  loras:
+    - id: detail-tweaker
+      urn: "urn:air:sd1:lora:civitai:62833@67632"
 
 custom_nodes:
-  - name: GlobalNode
-    url: git+https://github.com/global/node.git
+  - id: comfy-manager
+    url: "https://github.com/ltdrdata/ComfyUI-Manager"
+  - id: controlnet
+    url: "https://github.com/Fannovel16/comfyui_controlnet_aux"
+  - url: "https://github.com/some/direct-node"
 
 workflows:
-  - name: Test Workflow
-    description: Test workflow with references
+  - name: test-workflow
     models:
       checkpoints:
-        - ref: global-model
+        - ref: pny-cyberrealistic-v12
       loras:
-        - urn: urn:air:sd1:lora:civitai:33333
-          name: Workflow-specific LoRA
+        - ref: detail-tweaker
     custom_nodes:
-      - name: WorkflowNode
-        url: git+https://github.com/workflow/node.git 
+      - ref: comfy-manager
+      - ref: controlnet 

@@ -144,8 +144,12 @@ if selected_workflow:
                 workflow_models[cat] = lst
             wf_nodes = wf.get('custom_nodes', [])
             for node in wf_nodes:
-                if isinstance(node, dict) and node.get('url'):
-                    workflow_nodes.append(node.get('url'))
+                if isinstance(node, dict):
+                    if node.get('url'):
+                        workflow_nodes.append(node.get('url'))
+                    elif node.get('ref'):
+                        # We'll resolve this reference later
+                        workflow_nodes.append(f"REF:{node.get('ref')}")
             break
     else:
         print(f"[!] Workflow '{selected_workflow}' not found", file=sys.stderr)
@@ -212,8 +216,29 @@ for node in data.get('custom_nodes', []):
         if url:
             urls.append(str(url))
 
-# Workflow-specific nodes
-urls.extend(workflow_nodes)
+# Build index of global custom nodes by ID for reference resolution
+global_custom_nodes = {}
+for node in data.get('custom_nodes', []):
+    if isinstance(node, dict) and node.get('id'):
+        global_custom_nodes[node.get('id')] = node
+
+# Resolve workflow-specific custom node references
+resolved_workflow_nodes = []
+for node_url in workflow_nodes:
+    if node_url.startswith('REF:'):
+        ref_id = node_url[4:]  # remove "REF:" prefix
+        if ref_id in global_custom_nodes:
+            actual_url = global_custom_nodes[ref_id].get('url')
+            if actual_url:
+                resolved_workflow_nodes.append(str(actual_url))
+            else:
+                print(f"[!] Warning: custom node ref '{ref_id}' has no url field", file=sys.stderr)
+        else:
+            print(f"[!] Warning: custom node ref '{ref_id}' not found in global custom_nodes", file=sys.stderr)
+    else:
+        resolved_workflow_nodes.append(node_url)
+
+urls.extend(resolved_workflow_nodes)
 
 export_var('YAML_CUSTOM_NODE_URLS', ' '.join(urls))
 PY
@@ -291,12 +316,11 @@ install_requirements() {
 
 # -------------------------------------------------------------
 # Custom nodes installer
-# Reads a YAML file (default custom_nodes.yml or $CUSTOM_NODES_FILE)
-# with structure:
-# custom_nodes:
-#   - name: Friendly name
-#     description: Optional text
-#     url: git+https://... or package-name
+# Handles both Git repositories and PyPI packages:
+# - Git URLs (github.com, gitlab.com, etc.) are cloned into custom_nodes/
+# - git+ prefixed URLs have the prefix stripped before cloning
+# - Other URLs are treated as PyPI packages and pip installed
+# - If a cloned repo has requirements.txt, those are installed too
 # -------------------------------------------------------------
 install_custom_nodes() {
   local urls="${YAML_CUSTOM_NODE_URLS:-}"  # Provided by load_yaml_config
@@ -304,13 +328,44 @@ install_custom_nodes() {
 
   echo "[*] Installing custom nodes from YAML config..."
 
-  # Activate venv if not already active
-  # shellcheck disable=SC1090
-  source "$COMFY_DIR/venv/bin/activate"
+  # Ensure custom_nodes directory exists
+  mkdir -p "$COMFY_DIR/custom_nodes"
 
   for u in $urls; do
     echo "    → $u"
-    pip install --no-cache-dir "$u"
+    
+    # Check if this is a git URL (starts with git+ or contains github.com, etc.)
+    if [[ "$u" =~ ^git\+ ]] || [[ "$u" =~ github\.com|gitlab\.com|bitbucket\.org ]]; then
+      # Remove git+ prefix if present
+      clean_url="${u#git+}"
+      
+      # Extract repository name for directory
+      repo_name=$(basename "$clean_url" .git)
+      target_dir="$COMFY_DIR/custom_nodes/$repo_name"
+      
+      if [[ -d "$target_dir" ]]; then
+        echo "      ✓ Already exists at $target_dir"
+      else
+        echo "      Cloning into $target_dir..."
+        git clone --depth=1 "$clean_url" "$target_dir"
+        
+        # Install requirements if they exist
+        if [[ -f "$target_dir/requirements.txt" ]]; then
+          echo "      Installing requirements for $repo_name..."
+          # Activate venv if not already active
+          # shellcheck disable=SC1090
+          source "$COMFY_DIR/venv/bin/activate"
+          pip install -r "$target_dir/requirements.txt"
+        fi
+      fi
+    else
+      # Treat as a PyPI package
+      echo "      Installing PyPI package: $u"
+      # Activate venv if not already active  
+      # shellcheck disable=SC1090
+      source "$COMFY_DIR/venv/bin/activate"
+      pip install --no-cache-dir "$u"
+    fi
   done
 }
 

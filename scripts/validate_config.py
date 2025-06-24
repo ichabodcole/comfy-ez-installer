@@ -80,10 +80,11 @@ if custom_nodes and not isinstance(custom_nodes, list):
 else:
     for idx, node in enumerate(custom_nodes or []):
         if not isinstance(node, dict):
-            errors.append(f"custom_nodes[{idx}] must be mapping with 'url'")
+            errors.append(f"custom_nodes[{idx}] must be mapping with 'url' or 'id'")
             continue
-        if "url" not in node:
-            errors.append(f"custom_nodes[{idx}] missing 'url' field")
+        # Custom nodes can have url for direct references or id for global definitions
+        if "url" not in node and "id" not in node:
+            errors.append(f"custom_nodes[{idx}] missing 'url' or 'id' field")
 
 workflows = data.get("workflows", [])
 if workflows and not isinstance(workflows, list):
@@ -136,16 +137,23 @@ else:
             for node_idx, node in enumerate(wf_nodes or []):
                 if not isinstance(node, dict):
                     errors.append(
-                        f"workflows[{idx}].custom_nodes[{node_idx}] must be mapping with 'url'"
+                        f"workflows[{idx}].custom_nodes[{node_idx}] must be mapping with 'url' or 'ref'"
                     )
                     continue
-                if "url" not in node:
+                has_content = any(key in node for key in ("url", "ref"))
+                if not has_content:
                     errors.append(
-                        f"workflows[{idx}].custom_nodes[{node_idx}] missing 'url' field"
+                        f"workflows[{idx}].custom_nodes[{node_idx}] missing 'url' or 'ref' field"
+                    )
+                # Check for conflicting fields
+                if "ref" in node and "url" in node:
+                    errors.append(
+                        f"workflows[{idx}].custom_nodes[{node_idx}] cannot have both 'ref' and 'url' fields"
                     )
 
 # Validate that all refs point to existing IDs
 models = data.get("models", {}) or {}
+custom_nodes = data.get("custom_nodes", []) or []
 workflows = data.get("workflows", []) or []
 
 # Build index of available IDs by category
@@ -157,6 +165,12 @@ for cat, lst in models.items():
     for item in lst or []:
         if isinstance(item, dict) and "id" in item:
             available_ids[cat].add(item["id"])
+
+# Build index of available custom node IDs
+available_custom_node_ids = set()
+for node in custom_nodes:
+    if isinstance(node, dict) and "id" in node:
+        available_custom_node_ids.add(node["id"])
 
 # Check workflow refs
 for wf_idx, wf in enumerate(workflows):
@@ -171,6 +185,16 @@ for wf_idx, wf in enumerate(workflows):
                     errors.append(
                         f"workflows[{wf_idx}].models.{cat}[{item_idx}] ref '{ref_id}' not found in models.{cat}"
                     )
+    
+    # Check custom node refs
+    wf_nodes = wf.get("custom_nodes", []) or []
+    for node_idx, node in enumerate(wf_nodes):
+        if isinstance(node, dict) and "ref" in node:
+            ref_id = node["ref"]
+            if ref_id not in available_custom_node_ids:
+                errors.append(
+                    f"workflows[{wf_idx}].custom_nodes[{node_idx}] ref '{ref_id}' not found in global custom_nodes"
+                )
 
 if errors:
     print("[!] Configuration validation failed:")
