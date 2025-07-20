@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """Download specified Civitai models into the ComfyUI models directory.
 
-Environment variables expected:
-• CIVITAI_API_KEY   -  your Civitai API key
-• CIVITAI_CHECKPOINTS - comma-separated list of checkpoint IDs/URNs
-• CIVITAI_LORAS       - comma-separated list of lora IDs/URNs
-• CIVITAI_MODEL_DIR -  (optional) destination directory, default
-                        /home/comfyuser/ComfyUI/models
+Can be used via command line arguments or environment variables.
+
+Command line usage:
+    python download_civitai_models.py --api-key YOUR_KEY --dest-dir /path/to/models \\
+        --checkpoints "model1,model2" --loras "lora1,lora2"
+
+Environment variable usage (for backward compatibility):
+    CIVITAI_API_KEY=your_key CIVITAI_CHECKPOINTS="model1,model2" python download_civitai_models.py
 
 The script is idempotent: it skips files that already exist locally.
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import pathlib
+import sys
 from urllib.parse import urlparse
 
 import requests
@@ -22,33 +26,147 @@ import requests
 from tqdm import tqdm
 
 
-API_KEY = os.getenv("CIVITAI_API_KEY")
-DEST_BASE = pathlib.Path(
-    os.getenv("CIVITAI_MODEL_DIR", "/home/comfyuser/ComfyUI/models")
-).expanduser()
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Download Civitai models to ComfyUI models directory",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Download checkpoints and LoRAs
+  %(prog)s --api-key YOUR_KEY --checkpoints "model1,model2" --loras "lora1"
+  
+  # Use URNs with specific versions
+  %(prog)s --api-key YOUR_KEY --checkpoints "urn:air:sdxl:checkpoint:civitai:443821@1928679"
+  
+  # Mix of formats
+  %(prog)s --api-key YOUR_KEY --checkpoints "443821,urn:air:sdxl:checkpoint:civitai:1125067@1803585"
+        """,
+    )
+    
+    parser.add_argument(
+        "--api-key",
+        help="Civitai API key (can also use CIVITAI_API_KEY env var)",
+        default=os.getenv("CIVITAI_API_KEY"),
+    )
+    
+    parser.add_argument(
+        "--dest-dir",
+        type=pathlib.Path,
+        help="Destination directory for models (default: %(default)s)",
+        default=pathlib.Path(os.getenv("CIVITAI_MODEL_DIR", "/home/comfyuser/ComfyUI/models")),
+    )
+    
+    parser.add_argument(
+        "--download-threads",
+        type=int,
+        help="Number of concurrent download threads (default: %(default)s)",
+        default=int(os.getenv("CIVITAI_DOWNLOAD_THREADS", "3")),
+    )
+    
+    # Model category arguments
+    parser.add_argument(
+        "--checkpoints",
+        help="Comma-separated list of checkpoint models to download",
+        default=os.getenv("CIVITAI_CHECKPOINTS", ""),
+    )
+    
+    parser.add_argument(
+        "--loras",
+        help="Comma-separated list of LoRA models to download", 
+        default=os.getenv("CIVITAI_LORAS", ""),
+    )
+    
+    parser.add_argument(
+        "--embeddings",
+        help="Comma-separated list of embedding models to download",
+        default=os.getenv("CIVITAI_EMBEDDINGS", ""),
+    )
+    
+    parser.add_argument(
+        "--vae",
+        help="Comma-separated list of VAE models to download",
+        default=os.getenv("CIVITAI_VAE", ""),
+    )
+    
+    parser.add_argument(
+        "--controlnets",
+        help="Comma-separated list of ControlNet models to download",
+        default=os.getenv("CIVITAI_CONTROLNETS", ""),
+    )
+    
+    parser.add_argument(
+        "--upscalers",
+        help="Comma-separated list of upscaler models to download",
+        default=os.getenv("CIVITAI_UPSCALERS", ""),
+    )
+    
+    # Also support arbitrary categories via environment variables for backward compatibility
+    parser.add_argument(
+        "--from-env",
+        action="store_true",
+        help="Also scan environment variables for CIVITAI_* model categories",
+        default=True,
+    )
+    
+    return parser.parse_args()
 
-# Dynamically build entries from any env var starting with CIVITAI_
-# (excluding control vars). Subfolder name is derived from the suffix.
-entries: list[tuple[str, pathlib.Path]] = []
-for env_key, value in os.environ.items():
-    if not env_key.startswith("CIVITAI_"):
-        continue
-    if env_key in {"CIVITAI_API_KEY", "CIVITAI_MODEL_DIR", "CIVITAI_DOWNLOAD_THREADS"}:
-        continue
-    raw = value.strip()
-    if not raw:
-        continue
-    subfolder = env_key[len("CIVITAI_") :].lower()  # e.g., CHECKPOINTS -> checkpoints
-    dest_dir = DEST_BASE / subfolder
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    for item in raw.split(","):
-        item = item.strip()
-        if item:
-            entries.append((item, dest_dir))
+
+def get_model_entries_from_args(args: argparse.Namespace) -> list[tuple[str, pathlib.Path]]:
+    """Build model entries list from command line arguments."""
+    entries: list[tuple[str, pathlib.Path]] = []
+    
+    # Process explicit category arguments
+    categories = {
+        "checkpoints": args.checkpoints,
+        "loras": args.loras, 
+        "embeddings": args.embeddings,
+        "vae": args.vae,
+        "controlnets": args.controlnets,
+        "upscalers": args.upscalers,
+    }
+    
+    for category, models_str in categories.items():
+        if not models_str.strip():
+            continue
+            
+        dest_dir = args.dest_dir / category
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        
+        for item in models_str.split(","):
+            item = item.strip()
+            if item:
+                entries.append((item, dest_dir))
+    
+    # Also scan environment variables if requested (for backward compatibility)
+    if args.from_env:
+        for env_key, value in os.environ.items():
+            if not env_key.startswith("CIVITAI_"):
+                continue
+            if env_key in {"CIVITAI_API_KEY", "CIVITAI_MODEL_DIR", "CIVITAI_DOWNLOAD_THREADS"}:
+                continue
+            
+            # Skip categories already handled by explicit arguments
+            category = env_key[len("CIVITAI_"):].lower()
+            if category in categories:
+                continue
+                
+            raw = value.strip()
+            if not raw:
+                continue
+                
+            dest_dir = args.dest_dir / category
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            for item in raw.split(","):
+                item = item.strip()
+                if item:
+                    entries.append((item, dest_dir))
+    
+    return entries
 
 
 def get_download_threads():
-    """Get the number of download threads from environment."""
+    """Get the number of download threads from environment (for backward compatibility)."""
     return max(1, int(os.getenv("CIVITAI_DOWNLOAD_THREADS", "4")))
 
 
@@ -185,16 +303,31 @@ def download_model(models_dir: pathlib.Path, model_spec: str) -> bool:
 
 def main():
     """Main download function."""
+    args = parse_arguments()
+    
+    # Get model entries from command line arguments
+    entries = get_model_entries_from_args(args)
+    
     # Exit early if nothing to do
     if not entries:
         print("[*] No models specified for download")
+        print("Use --help to see available options")
         return
     
-    if not API_KEY:
-        print("[!] CIVITAI_API_KEY not set, skipping Civitai downloads")
-        return
+    if not args.api_key:
+        print("[!] No API key provided. Use --api-key or set CIVITAI_API_KEY environment variable")
+        sys.exit(1)
 
     print(f"[*] Starting download of {len(entries)} model(s)...")
+    print(f"[*] Destination directory: {args.dest_dir}")
+    
+    # Set up global headers with the API key
+    global headers
+    headers = {
+        "Authorization": f"Bearer {args.api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
     
     # Use the robust process_model_entry function for each entry
     for entry, dest_dir in entries:
@@ -204,11 +337,8 @@ def main():
     return
 
 
-headers = {
-    "Authorization": f"Bearer {API_KEY}",
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-}
+# Headers will be set in main() after parsing API key from arguments
+headers = {}
 
 # -------------------------------------------------------------
 # Concurrency settings

@@ -156,8 +156,11 @@ uv run python comfyctl.py start
 uv run python comfyctl.py validate --config config.yml
 python scripts/validate_config.py config.yml
 
-# Download models manually
-python scripts/download_civitai_models.py
+# Download models manually (new CLI interface)
+python scripts/download_civitai_models.py --api-key YOUR_KEY --dest-dir models --checkpoints "model1,model2"
+
+# Or use environment variables (backward compatible)
+CIVITAI_API_KEY=your_key python scripts/download_civitai_models.py
 ```
 
 ### Environment Variables
@@ -170,9 +173,10 @@ export COMFY_DIR="/path/to/ComfyUI"
 export CPU_ONLY="true"                    # Force CPU-only installation
 export AUTO_START="true"                  # Start ComfyUI after installation
 
-# Model downloads
+# Model downloads (used by CLI and environment fallback)
 export CIVITAI_API_KEY="your-api-key"     # For faster downloads
 export CIVITAI_DOWNLOAD_THREADS="8"       # Concurrent downloads (default: 4)
+# Note: CLI arguments take precedence over environment variables
 
 # Configuration
 export CONFIG_FILE="custom-config.yml"    # Use specific config file
@@ -341,7 +345,7 @@ uv run pytest --tb=short -v
 export CIVITAI_DOWNLOAD_THREADS=8
 
 # Downloads are automatically parallelized
-python scripts/download_civitai_models.py
+python scripts/download_civitai_models.py --download-threads 8 --api-key YOUR_KEY --dest-dir models
 ```
 
 ## 🚀 Roadmap

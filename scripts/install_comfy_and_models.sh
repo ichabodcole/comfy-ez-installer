@@ -372,9 +372,28 @@ install_custom_nodes() {
 download_models() {
   if [[ -f "$HELPER_PY" ]]; then
     echo "[*] Running model download helper..."
-    export CIVITAI_MODEL_DIR="$MODEL_DEST_DIR"
-    # CIVITAI_API_KEY / CIVITAI_* variables are passed through env
-    if ! python "$HELPER_PY"; then
+    
+    # Build command line arguments for the download script
+    local download_args=("--dest-dir" "$MODEL_DEST_DIR")
+    
+    # Add API key if available
+    if [[ -n "${CIVITAI_API_KEY:-}" ]]; then
+      download_args+=("--api-key" "$CIVITAI_API_KEY")
+    fi
+    
+    # Add model categories from environment variables
+    local categories=("CHECKPOINTS" "LORAS" "EMBEDDINGS" "VAE" "CONTROLNETS" "UPSCALERS")
+    for category in "${categories[@]}"; do
+      local env_var="CIVITAI_${category}"
+      local value="${!env_var:-}"
+      if [[ -n "$value" ]]; then
+        local arg_name="--${category,,}" # Convert to lowercase
+        download_args+=("$arg_name" "$value")
+      fi
+    done
+    
+    # Run the download script with explicit arguments (also supports env vars as fallback)
+    if ! python "$HELPER_PY" "${download_args[@]}"; then
       echo "[!] Warning: Model download script encountered errors, but continuing..."
     fi
   else
